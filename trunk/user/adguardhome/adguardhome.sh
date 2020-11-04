@@ -25,7 +25,7 @@ set_iptable()
 	for IP in $IPS
 	do
 		iptables -t nat -A PREROUTING -p tcp -d $IP --dport 53 -j REDIRECT --to-ports 5335 >/dev/null 2>&1
-		iptables -t nat -A PREROUTING -p udp -d $IP --dport 53 -j REDIRECT --to-ports 5335>/dev/null 2>&1
+		iptables -t nat -A PREROUTING -p udp -d $IP --dport 53 -j REDIRECT --to-ports 5335 >/dev/null 2>&1
 	done
 
 	IPS="`ifconfig | grep "inet6 addr" | grep -v " fe80::" | grep -v " ::1" | grep "Global" | awk '{print $3}'`"
@@ -34,6 +34,13 @@ set_iptable()
 		ip6tables -t nat -A PREROUTING -p tcp -d $IP --dport 53 -j REDIRECT --to-ports 5335 >/dev/null 2>&1
 		ip6tables -t nat -A PREROUTING -p udp -d $IP --dport 53 -j REDIRECT --to-ports 5335 >/dev/null 2>&1
 	done
+sed -i '/no-resolv/d' /etc/storage/dnsmasq/dnsmasq.conf
+sed -i '/server=127.0.0.1/d' /etc/storage/dnsmasq/dnsmasq.conf
+cat >> /etc/storage/dnsmasq/dnsmasq.conf << EOF
+no-resolv
+server=127.0.0.1#5335
+EOF
+/sbin/restart_dhcpd
     logger -t "AdGuardHome" "重定向53端口"
     fi
 }
@@ -73,13 +80,13 @@ dns:
   protection_enabled: true
   filtering_enabled: true
   blocking_mode: nxdomain
-  blocked_response_ttl: 10
+  blocked_response_ttl: 0
   querylog_enabled: true
-  ratelimit: 20
+  ratelimit: 60
   ratelimit_whitelist: []
   refuse_any: true
   bootstrap_dns:
-  - 1.1.1.1
+  - 127.0.0.1:6053
   all_servers: true
   allowed_clients: []
   disallowed_clients: []
@@ -90,7 +97,7 @@ dns:
   safebrowsing_enabled: false
   resolveraddress: ""
   upstream_dns:
-  - 1.1.1.1
+  - 127.0.0.1:6053
 tls:
   enabled: false
   server_name: ""
@@ -160,7 +167,7 @@ start_adg(){
 	change_dns
 	set_iptable
 	logger -t "AdGuardHome" "运行AdGuardHome"
-	eval "/tmp/AdGuardHome/AdGuardHome -c $adg_file -w /tmp/AdGuardHome -v" &
+	eval "/tmp/AdGuardHome/AdGuardHome -c $adg_file -w /tmp/AdGuardHome -v --no-check-update" &
 
 }
 stop_adg(){
